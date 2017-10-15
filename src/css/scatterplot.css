@@ -1,0 +1,21 @@
+.pv-scatterplot .x-label {
+    text-anchor: end;
+    dominant-baseline: text-after-edge;
+}
+
+.pv-scatterplot .x-label div {
+    float: right;
+}
+
+.pv-scatterplot .y-label select {
+    transform-origin: right;
+}
+
+.pv-scatterplot .y-label {
+    text-anchor: end;
+    dominant-baseline: text-before-edge;
+}
+
+.pv-scatterplot .item circle {
+    fill-opacity: 0.25;
+}

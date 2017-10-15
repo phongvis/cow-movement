@@ -1,0 +1,20 @@
+{
+  "name": "cow-db",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "dependencies": {
+    "d3-dsv": "^1.0.7",
+    "json2csv": "^3.11.2",
+    "lodash": "^4.17.4",
+    "mongodb": "^2.2.31",
+    "nodemon": "^1.12.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "nodemon main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC"
+}

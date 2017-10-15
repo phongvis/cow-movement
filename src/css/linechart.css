@@ -1,0 +1,26 @@
+.pv-linechart .x-label {
+    text-anchor: end;
+    dominant-baseline: text-after-edge;
+}
+
+.pv-linechart .x-label div {
+    float: right;
+}
+
+.pv-linechart .y-label select {
+    transform-origin: right;
+}
+
+.pv-linechart .y-label {
+    text-anchor: end;
+    dominant-baseline: text-before-edge;
+}
+
+.pv-linechart .line {
+    fill: none;
+    stroke:gray;
+}
+
+.pv-linechart circle:hover {
+    fill: red;
+}

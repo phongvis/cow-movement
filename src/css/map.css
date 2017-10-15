@@ -1,0 +1,16 @@
+.pv-map .holding circle {
+    fill: none;
+    stroke: gray;
+    opacity: 0.2;
+}
+
+.pv-map .holding text {
+    text-anchor: middle;
+    dominant-baseline: middle;
+    opacity: 0.2;
+}
+
+.pv-map .animal rect {
+    stroke: none;
+    fill: black;
+}

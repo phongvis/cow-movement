@@ -1,0 +1,21 @@
+.pv-animove .holding circle {
+    fill: none;
+    stroke: gray;
+}
+
+.pv-animove .animal rect {
+    stroke: none;
+    fill: black;
+}
+
+.pv-animove .animal path {
+    /* fill: none;
+    stroke: black;
+    stroke-opacity: 0.25; */
+
+    /* fill: black;
+    stroke: black; */
+    opacity: 0.5;
+    /* stroke-width: 0.5px; */
+    /* fill-opacity: 0.25; */
+}
