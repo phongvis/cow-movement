@@ -1,0 +1,112 @@
+// Export
+mongoexport --db cts --collection GLholdings --type csv --fields LocationKey,LocationType,LocationId,PremisesType,LocationName,LocationAddress1,LocationAddress2,LocationAddress3,LocationAddress4,PostCode,MapRef,X,Y,HoldingType,CtyKey,CtyPar,vLocationId,Region,Live,Has_Movements,CurrentSamCPH,CurrentCPHActiveFrom,PostCodeArea --out cts-data/GLholdings.csv
+
+mongoexport --db cts --collection GL2010movement --type csv --fields AnimalId,MovementId,MovementDate,OffLocationKey,OnLocationKey,Birth,Death,Stay_Length,Valid_History,OffX,OffY,OnX,OnY,Distance --out cts-data/GL2010movement.csv
+
+mongoexport --db cts --collection AnimalsFromGL2010movement --type csv --fields AnimalId,MovementId,MovementDate,OffLocationKey,OnLocationKey,Birth,Death,Stay_Length,Valid_History,OffX,OffY,OnX,OnY,Distance --out cts-data/AnimalsFromGL2010movement.csv
+
+// Import
+mongoimport --db cts --collection movement --type csv --headerline --file cts-data/tblMovementDirect.txt
+
+// Import with Date type
+mongoimport --db cts --collection movement --type csv --columnsHaveTypes --fields 'AnimalId.auto(),MovementId.auto(),MovementDate.date_ms(yyyy-MM-dd H:mm:ss),OffLocationKey.auto(),OnLocationKey.auto(),Birth.boolean(),Death.boolean(),Stay_Length.auto(),Valid_History.auto(),OffX.auto(),OffY.auto(),OnX.auto(),OnY.auto(),Distance.auto()' --parseGrace autoCast --file cts-data/tblMovementDirect.txt
+
+mongoimport --db cts --collection animal --type csv --columnsHaveTypes --fields 'AnimalId.auto(),Breed.auto(),Sex.auto(),Eartag.auto(),CTS_Indicator.auto(),BirthDate.date_ms(yyyy-MM-dd H:mm:ss),DeathDate.date_ms(yyyy-MM-dd H:mm:ss),ImportCountry.auto(),ImportDate.date_ms(yyyy-MM-dd H:mm:ss),StandardEartag.auto(),isDam.auto(),DateFirstCalved.date_ms(yyyy-MM-dd H:mm:ss),DateLastCalved.date_ms(yyyy-MM-dd H:mm:ss),AgeAtDeath.auto(),BirthLocationKey.auto(),DeathLocationKey.auto(),BreedPurpose.auto()' --parseGrace autoCast --file cts-data/tblAnimal.txt
+
+mongoimport --db cts --collection location --type csv --columnsHaveTypes --fields 'LocationKey.auto(),LocationType.auto(),LocationId.auto(),PremisesType.auto(),LocationName.auto(),LocationAddress1.auto(),LocationAddress2.auto(),LocationAddress3.auto(),LocationAddress4.auto(),PostCode.auto(),MapRef.auto(),X.auto(),Y.auto(),HoldingType.auto(),CtyKey.auto(),CtyPar.auto(),vLocationId.auto(),Region.auto(),Live.auto(),Has_Movements.auto(),CurrentSamCPH.auto(),CurrentCPHActiveFrom.date_ms(yyyy-MM-dd H:mm:ss)' --parseGrace autoCast --file cts-data/tblLocation.txt
+
+// Delete header line
+db.animal.remove({AnimalId: { $eq: 'AnimalId' }})
+db.movement.remove({AnimalId: { $eq: 'AnimalId' }})
+db.location.remove({LocationKey: { $eq: 'LocationKey' }})
+
+// Index
+db.animal.createIndex( { AnimalId: 1 } )
+db.movement.createIndex( { AnimalId: 1 } )
+db.movement.createIndex( { MovementDate: 1 } )
+db.movement.createIndex( { OnLocationKey: 1 } )
+db.movement.createIndex( { OffLocationKey: 1 } )
+
+
+// Update
+db.movement.find({ 'MovementDate' : { $type : 1 } }).forEach(function(x) {   
+  x.MovementDate = new Date(x.MovementDate);
+  db.movement.save(x);
+});
+
+// Create a new field by substring of an existing field
+// Doesn't work with 'L48 1PT', can't substring of L48???
+db.location.aggregate(
+  [
+    {
+      $project: {
+        LocationKey: 1,
+        PostCodeArea: { $substrBytes: [ "$PostCode", 0, 2 ] }
+      }
+    }
+  ]
+)
+
+db.location.find({}).forEach(function(x) {   
+  if (x.PostCode) {
+    // The second character is a letter
+    const n = isNaN(+x.PostCode[1]) ? 2 : 1;
+    x.PostCodeArea = x.PostCode.substr(0, n);
+    db.location.save(x);
+  }  
+});
+
+db.location.aggregate([
+  { $group: { _id: "$PostCodeArea", count: { $sum: 1 } } }
+])
+
+db.location.aggregate([
+  { $group: { _id: "$PostCodeArea", count: { $sum: 1 } } },
+  { $out: "postcode" }
+])
+
+// Create a new collection containing only holdings in GL postcode area, excluding empty coordinates
+db.location.aggregate([
+    { $match: { 
+    	PostCodeArea: { $eq: 'GL' },
+    	X: { $nin: ["", 0, null] },
+    	Y: { $nin: ["", 0, null] }
+      } 
+    }, { $out: "GLholdings" }
+])
+
+// All holdings in GL
+holdings = db.GLholdings.find({}).toArray().map(d => d.LocationKey);
+
+// Create a new collection containing movement in 2010 and GL holdings
+db.movement.aggregate([
+  { $match: 
+    {
+      MovementDate: { $gte: new Date('2010-01-01'), $lte: new Date('2010-12-31') },
+      $or: [
+        { OffLocationKey: { $in: holdings } },
+        { OnLocationKey: { $in: holdings } }
+      ]
+    } 
+  },
+  { $out: 'GL2010movement' }
+]);
+
+// All movement with those animals
+animalIds = db.GL2010movement.distinct('AnimalId');
+db.movement.aggregate([
+  { $match: { AnimalId: { $in: animalIds } } },
+  { $out: 'AnimalsFromGL2010movement' }
+]);
+
+// Holdings involved in those movements
+holdingIds = db.AnimalsFromGL2010movement.distinct('OffLocationKey').concat(db.AnimalsFromGL2010movement.distinct('OnLocationKey'));
+
+db.location.aggregate([
+  { $match: { LocationKey: { $in: holdingIds } } },
+  { $out: 'HoldingsWithGL2010movement' }
+]);
+
+
+// Max
+db.getCollection('movement').find().sort({"MovementDate":-1}).limit(1)

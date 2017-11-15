@@ -16,11 +16,22 @@
     dominant-baseline: text-before-edge;
 }
 
-.pv-linechart .line {
+.pv-linechart .line path {
     fill: none;
-    stroke:gray;
 }
 
-.pv-linechart circle:hover {
-    fill: red;
+.pv-linechart .line circle:hover {
+    stroke: black;
+}
+
+.pv-linechart .line text {
+    text-anchor: end;
+}
+
+.pv-linechart .cell:hover {
+    stroke: red;
+}
+
+.pv-linechart .cell rect {
+    shape-rendering: crispEdges;
 }

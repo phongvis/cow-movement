@@ -7,7 +7,9 @@ pv.vis.animove = function() {
      */
     const margin = { top: 30, right: 30, bottom: 30, left: 30 },
         animalPadding = 1,
-        animalSize = 10;
+        continuous = false,
+        singleLocation = false,
+        animalSize = continuous ? 4 : 10;
 
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Size of the main content, excluding margins
@@ -41,8 +43,10 @@ pv.vis.animove = function() {
      */
     const xScale = d3.scaleLinear(),
         yScale = d3.scaleLinear(),
-        colorScale = d => d3.interpolateReds(d <= 15 ? 1 : d <= 30 ? 0.5 : d <= 60 ? 0.25 : 0.1),
+        colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
         orderScale = d3.interpolateGreys,
+        line = d3.line().x(d => d.x).y(d => d.y)
+            .curve(d3.curveCatmullRom),
         listeners = d3.dispatch('click');
 
     /**
@@ -53,8 +57,10 @@ pv.vis.animove = function() {
             // Initialize
             if (!this.visInitialized) {
                 visContainer = d3.select(this).append('g').attr('class', 'pv-animove');
-                animalContainer = visContainer.append('g').attr('class', 'animals');
                 holdingContainer = visContainer.append('g').attr('class', 'holdings');
+                animalContainer = visContainer.append('g').attr('class', 'animals');
+
+                visContainer.append('path').attr('class', 'journey');
 
                 this.visInitialized = true;
             }
@@ -96,7 +102,13 @@ pv.vis.animove = function() {
 
         // Updates that depend on both data and display change
         computeHoldingsLayout();
-        computeHoldingCellsLayout();
+
+        if (singleLocation) {
+            computeHoldingPositions();
+        } else {
+            computeHoldingCellsLayout();
+        }
+
         computeMovementsLayout();
 
         /**
@@ -107,10 +119,14 @@ pv.vis.animove = function() {
             .merge(holdings).call(updateHoldings);
         holdings.exit().transition().attr('opacity', 0).remove();
 
-        const animals = animalContainer.selectAll('.animal').data(data, movementId);
-        animals.enter().append('g').attr('class', 'animal').call(enterAnimals)
-            .merge(animals).call(updateAnimals);
-        animals.exit().transition().attr('opacity', 0).remove();
+        if (continuous) {
+            visContainer.select('.journey').attr('d', getJourney());
+        } else {
+            const animals = animalContainer.selectAll('.animal').data(data, movementId);
+            animals.enter().append('g').attr('class', 'animal').call(enterAnimals)
+                .merge(animals).call(updateAnimals);
+            animals.exit().transition().attr('opacity', 0).remove();
+        }
     }
 
     function getExtent(array, f) {
@@ -130,6 +146,9 @@ pv.vis.animove = function() {
             }).on('mouseover', function(d) {
                 d3.select(this).raise();
             });
+
+        container.append('title')
+            .text(d => d.name + ' (' + d.postcode + ')');
     }
 
     /**
@@ -145,14 +164,19 @@ pv.vis.animove = function() {
                 .attr('opacity', 1);
 
             // Cells
-            const items = container.selectAll('rect').data(d.cells);
-            items.enter().append('rect')
+            if (singleLocation) {
+
+            } else {
+                const items = container.selectAll('rect').data(d.cells);
+                items.enter().append('rect')
                 .attr('width', animalSize)
                 .attr('height', animalSize)
                 .style('fill', c => c.start ? 'green' : colorScale(c.stayLength))
-              .merge(items)
+                // .style('fill', c => colorScale(c.stayLength))
+                .merge(items)
                 .attr('x', c => c.x - animalSize / 2 - d.x)
                 .attr('y', c => c.y - animalSize / 2 - d.y);
+            }
         });
     }
 
@@ -170,6 +194,10 @@ pv.vis.animove = function() {
 
         container.append('path')
             .attr('class', 'curve');
+
+        container.append('title')
+            .text(d => holdingLookup[d.origin].name + ' (' + holdingLookup[d.origin].postcode + ') → ' +
+                holdingLookup[d.dest].name + ' (' + holdingLookup[d.dest].postcode + ')');
     }
 
     /**
@@ -183,12 +211,19 @@ pv.vis.animove = function() {
             container.transition()
                 .attr('opacity', 1);
 
-            container.select('.curve')
+            container.select('.curve').transition()
                 .attr('d', d.path);
 
-            container.style('stroke', orderScale((i + 1) / data.length));
-            container.style('fill', orderScale((i + 1) / data.length));
+            container.select('.curve')
+                .style('stroke', orderScale((i + 1) / data.length));
         });
+    }
+
+    function getJourney() {
+        return line(data.map(d => ({
+            x: d.originCell.x,
+            y: d.originCell.y
+        })));
     }
 
     /**
@@ -196,8 +231,15 @@ pv.vis.animove = function() {
      */
     function computeHoldingsLayout() {
         holdingData.forEach(d => {
-            d.x = lon(d) === undefined ? _.random(0, width) : xScale(lon(d));
-            d.y = lat(d) === undefined ? _.random(0, height) : yScale(lat(d));
+            d.x = xScale(lon(d));
+            d.y = yScale(lat(d));
+        });
+    }
+
+    function computeHoldingPositions() {
+        data.forEach(d => {
+            d.originCell = holdingLookup[d.origin];
+            d.destCell = holdingLookup[d.dest];
         });
     }
 
@@ -207,16 +249,12 @@ pv.vis.animove = function() {
     function computeMovementsLayout() {
         data.forEach(d => {
             if (!d.birth && !d.death) {
-                d.path = linkArc(d);
+                d.path = linkArcAsymmetric(d);
             }
         });
     }
 
-    function linkArc(d) {
-        // const fx = holdingLookup[d.origin].x,
-        //     fy = holdingLookup[d.origin].y,
-        //     tx = holdingLookup[d.dest].x,
-        //     ty = holdingLookup[d.dest].y;
+    function linkArcThickThin(d) {
         const fx = d.originCell.x,
             fy = d.originCell.y,
             tx = d.destCell.x,
@@ -225,7 +263,7 @@ pv.vis.animove = function() {
         const dx = Math.abs(fx - tx),
             dy = Math.abs(fy - ty),
             dr = Math.sqrt(dx * dx + dy * dy),
-            offset = 1.5,
+            offset = 2.5,
             offsetX = offset * dx / dr,
             offsetY = offset * dy / dr,
             fx1 = fx - offsetX,
@@ -237,6 +275,39 @@ pv.vis.animove = function() {
         return 'M' + fx1 + ',' + fy1 +
             'A' + dr + ',' + dr + ' 0 0,1 ' + tx + ',' + ty +
             'A' + dr + ',' + dr + ' 0 0,0 ' + fx2 + ',' + fy2 + 'Z';
+    }
+
+    function linkArc(d) {
+        const fx = d.originCell.x,
+            fy = d.originCell.y,
+            tx = d.destCell.x,
+            ty = d.destCell.y;
+
+        const dx = Math.abs(fx - tx),
+            dy = Math.abs(fy - ty),
+            dr = Math.sqrt(dx * dx + dy * dy);
+
+        return 'M' + fx + ',' + fy + 'A' + dr + ',' + dr + ' 0 0,1 ' + tx + ',' + ty;
+    }
+
+    function linkArcAsymmetric(d) {
+        const fx = d.originCell.x,
+            fy = d.originCell.y,
+            tx = d.destCell.x,
+            ty = d.destCell.y;
+
+        const dx = Math.abs(fx - tx),
+            dy = Math.abs(fy - ty),
+            dr = Math.sqrt(dx * dx + dy * dy);
+
+        const asym = 0.25,
+            angle = Math.PI / 180 * 90;
+        const x = (fx - tx) * asym,
+            y = (fy - ty) * asym,
+            cx = tx + x * Math.cos(angle) - y * Math.sin(angle),
+            cy = ty + y * Math.cos(angle) + x * Math.sin(angle);
+
+        return 'M' + fx + ',' + fy + 'C' + cx + ' ' + cy + ' ' + tx + ' ' + ty + ' ' + tx + ' ' + ty;
     }
 
     /**

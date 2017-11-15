@@ -10,12 +10,22 @@ pv.vis.linechart = function() {
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Size of the main content, excluding margins
 
+    let cellWidth,
+        cellHeight;
+
     /**
      * Accessors.
      */
     let id = d => d.id,
+        points = d => d.points,
+        _cells = d => d.cells, // row, col, value
+        row = d => d.row,
+        col = d => d.col,
+        value = d => d.value,
         xDim, yDim,
-        title;
+        name = d => d.name,
+        title,
+        cellTitle;
 
     /**
      * Data binding to DOM elements.
@@ -27,7 +37,8 @@ pv.vis.linechart = function() {
      * DOM.
      */
     let visContainer, // Containing the entire visualization
-        itemContainer,
+        lineContainer,
+        cellContainer,
         xAxisContainer,
         yAxisContainer;
 
@@ -39,6 +50,8 @@ pv.vis.linechart = function() {
         xAxis = d3.axisBottom().scale(xScale),
         yAxis = d3.axisLeft().scale(yScale),
         line = d3.line().x(d => d.x).y(d => d.y),
+        colorScale = d3.scaleOrdinal().range(d3.schemeCategory10),
+        cellColorScale = t => d3.interpolateReds(t),
         listeners = d3.dispatch('click');
 
     /**
@@ -51,7 +64,8 @@ pv.vis.linechart = function() {
                 visContainer = d3.select(this).append('g').attr('class', 'pv-linechart');
                 xAxisContainer = visContainer.append('g').attr('class', 'x-axis');
                 yAxisContainer = visContainer.append('g').attr('class', 'y-axis');
-                itemContainer = visContainer.append('g').attr('class', 'items');
+                cellContainer = visContainer.append('g').attr('class', 'cells');
+                lineContainer = visContainer.append('g').attr('class', 'lines');
 
                 this.visInitialized = true;
             }
@@ -74,8 +88,8 @@ pv.vis.linechart = function() {
         visContainer.attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
         xAxisContainer.attr('transform', 'translate(0,' + height + ')');
 
-        xScale.rangeRound([ 0, width ]);
-        yScale.rangeRound([ height, 0 ]);
+        xScale.range([ 0, width ]);
+        yScale.range([ height, 0 ]);
 
         /**
          * Computation.
@@ -83,8 +97,8 @@ pv.vis.linechart = function() {
         // Updates that depend only on data change
         if (dataChanged) {
             // Domain scale
-            xScale.domain([ 0, d3.max(data, xDim.value) ]).nice();
-            yScale.domain([ 0, d3.max(data, yDim.value) ]).nice();
+            xScale.domain([ 0, d3.max(data.map(points).map(points => d3.max(points, xDim.value))) ]).nice();
+            yScale.domain([ 0, d3.max(data.map(points).map(points => d3.max(points, yDim.value))) ]).nice();
         }
 
         // Updates that depend on both data and display change
@@ -97,21 +111,63 @@ pv.vis.linechart = function() {
         xAxisContainer.call(xAxis).call(xLabel);
         yAxisContainer.call(yAxis).call(yLabel);
 
-        // Items
-        const items = itemContainer.selectAll('.item').data([ data ]);
-        items.enter().append('g').attr('class', 'item').call(enterItems)
-            .merge(items).call(updateItems);
-        items.exit().transition().attr('opacity', 0).remove();
+        // Lines
+        const lines = lineContainer.selectAll('.line').data(data);
+        lines.enter().append('g').attr('class', 'line').call(enterLines)
+            .merge(lines).call(updateLines);
+        lines.exit().transition().attr('opacity', 0).remove();
+
+        // Cells
+        const cells = cellContainer.selectAll('.cell').data(_cells(data[0]));
+        cells.enter().append('g').attr('class', 'cell').call(enterCells)
+            .merge(cells).call(updateCells);
+        cells.exit().transition().attr('opacity', 0).remove();
+    }
+
+    function enterLines(selection) {
+        selection.attr('opacity', 0);
+
+        // Line
+        selection.append('path')
+            .style('stroke', d => colorScale(name(d)));
+
+        // Name
+        selection.append('text')
+            .text(name)
+            .style('fill', d => colorScale(name(d)));
+    }
+
+    function updateLines(selection) {
+        selection.each(function(d, i) {
+            const container = d3.select(this);
+
+            // Transition opacity
+            container.transition().attr('opacity', 1);
+
+            // Line
+            container.select('path').attr('d', line((points(d))));
+
+            // Name
+            container.select('text')
+                .attr('x', width)
+                .attr('y', height - 20 - 20 * i);
+
+            // Points
+            const items = container.selectAll('.item').data(d.points);
+            items.enter().append('g').attr('class', 'item').call(enterItems)
+                .merge(items).call(updateItems);
+            items.exit().remove();
+        });
     }
 
     /**
      * Called when new items added.
      */
     function enterItems(selection) {
-        const container = selection.attr('opacity', 0);
-
-        // Line
-        container.append('path').attr('class', 'line');
+        selection.append('circle')
+            .attr('r', 2)
+            .append('title')
+                .text(title);
     }
 
     /**
@@ -121,21 +177,36 @@ pv.vis.linechart = function() {
         selection.each(function(d) {
             const container = d3.select(this);
 
-            // Transition opacity
-            container.transition().attr('opacity', 1);
+            container.select('circle')
+                .attr('cx', d.x)
+                .attr('cy', d.y)
+                .style('fill', colorScale(name(d3.select(this.parentNode).datum())));
+        });
+    }
 
-            // Line
-            container.select('.line').attr('d', line(d));
+    function enterCells(selection) {
+        const container = selection
+            .attr('transform', d => 'translate(' + d.x + ',' + d.y + ')')
+            .attr('opacity', 0);
 
-            // Points
-            const items = container.selectAll('circle').data(d);
-            const enterItems = items.enter().append('circle')
-                .attr('r', 2);
-            enterItems.append('title')
-                .text(title)
-            enterItems.merge(items)
-                .attr('cx', d2 => d2.x)
-                .attr('cy', d2 => d2.y);
+        container.append('rect');
+        container.append('title').text(cellTitle);
+    }
+
+    function updateCells(selection) {
+        selection.each(function(d) {
+            const container = d3.select(this);
+
+            // Transition location & opacity
+            container.transition()
+                .attr('transform', 'translate(' + d.x + ',' + d.y + ')')
+                .attr('opacity', 1);
+
+            // Rect
+            container.select('rect')
+                .attr('width', cellWidth)
+                .attr('height', cellHeight)
+                .style('fill', cellColorScale(value(d)));
         });
     }
 
@@ -143,9 +214,23 @@ pv.vis.linechart = function() {
      * Computes the position of each item.
      */
     function computeLayout(data) {
+        cellWidth = xScale(1) - xScale(0);
+        cellHeight = yScale(0) - yScale(1);
+
         data.forEach(d => {
-            d.x = xScale(xDim.value(d));
-            d.y = yScale(yDim.value(d));
+            // Lines
+            points(d).forEach(p => {
+                p.x = xScale(xDim.value(p));
+                p.y = yScale(yDim.value(p));
+            });
+
+            // Cells
+            _cells(d).forEach(c => {
+                // c.x = xScale(col(c));
+                // c.y = yScale(row(c)) - cellHeight;
+                c.x = xScale(col(c)) - cellWidth / 2;
+                c.y = yScale(row(c)) - cellHeight / 2;
+            });
         });
     }
 
@@ -191,6 +276,15 @@ pv.vis.linechart = function() {
     };
 
     /**
+     * Sets/gets the points for each line.
+     */
+    module.points = function(value) {
+        if (!arguments.length) return points;
+        points = value;
+        return this;
+    };
+
+    /**
      * Sets/gets the x dimension.
      */
     module.xDim = function(value) {
@@ -223,6 +317,15 @@ pv.vis.linechart = function() {
     module.title = function(value) {
         if (!arguments.length) return title;
         title = value;
+        return this;
+    };
+
+    /**
+     * Sets/gets the tooltip of cells.
+     */
+    module.cellTitle = function(value) {
+        if (!arguments.length) return cellTitle;
+        cellTitle = value;
         return this;
     };
 

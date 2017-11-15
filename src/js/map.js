@@ -6,13 +6,13 @@ pv.vis.map = function() {
      * Visual configs.
      */
     const margin = { top: 20, right: 20, bottom: 20, left: 20 },
-        animalPadding = 1,
-        animalSize = 4;
+        animalPadding = 0,
+        animalSize = 3;
 
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Size of the main content, excluding margins
 
-    const transitionDuration = 100;
+    const transitionDuration = 1000;
 
     /**
      * Accessors.
@@ -43,7 +43,7 @@ pv.vis.map = function() {
      */
     const xScale = d3.scaleLinear(),
         yScale = d3.scaleLinear(),
-        colorScale = d => d3.interpolateReds(d <= 15 ? 1 : d <= 30 ? 0.5 : d <= 60 ? 0.25 : 0.1),
+        colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
         listeners = d3.dispatch('click');
 
     /**
@@ -109,7 +109,7 @@ pv.vis.map = function() {
     }
 
     let animationCount = 0;
-    const maxCount = 200;
+    const maxCount = Number.MAX_VALUE;
 
     function animate() {
         if (animationCount >= Math.min(maxCount, movementGroupData.length)) return;
@@ -156,14 +156,15 @@ pv.vis.map = function() {
             .attr('opacity', 0)
             .on('click', function(d) {
                 listeners.call('click', this, d);
+                console.log(d);
             }).on('mouseover', function(d) {
                 d3.select(this).raise();
             });
 
         container.append('circle')
             .attr('r', 12);
-        container.append('text')
-            .text(d => d.type);
+        // container.append('text')
+        //     .text(d => d.type);
     }
 
     /**
@@ -189,7 +190,6 @@ pv.vis.map = function() {
             .attr('opacity', 0.5)
             .on('click', function(d) {
                 listeners.call('click', this, d);
-                console.log(d.group);
             }).on('mouseover', function(d) {
                 d3.select(this).raise();
             });
@@ -244,6 +244,9 @@ pv.vis.map = function() {
                 a.y = h.y + (animalSize + animalPadding) * seqs[idx].row;
             });
         } else {
+            // TODO: should be none
+            console.log('no', h);
+
             // If a holding doesn't exist, it's an external, set it to somewhere far
             h.animals.forEach(a => {
                 if (a.x0 === undefined) {
