@@ -1,3 +1,10 @@
+.pv-animove  {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
 .pv-animove .holding circle {
     fill: none;
     stroke: gray;
@@ -7,12 +14,6 @@
     stroke: none;
     fill: black;
 }
-
-/* .pv-animove .animal path {
-    fill: black;
-    stroke: none;
-    stroke-opacity: 0.25;
-} */
 
 .pv-animove .animal path.curve {
     fill: none;

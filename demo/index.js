@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Vis
     const map = pv.vis.map(),
-        bgMap = L.map('map'),
         plot = pv.vis.scatterplot()
             .xDim({ label: '', value: d => d.date })
             .yDim({ label: 'stay length (days)', value: d => d.stayLength }),
@@ -69,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 const l = (new OSRef(+h.X, +h.Y)).toLatLng();
                 holding.lat = l.lat;
-                holding.lon = l.lng;
+                holding.lng = l.lng;
 
                 return holding;
             });
@@ -83,7 +82,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 movementData = _.sortBy(movementData, 'moveId');
             }
 
-            // excludeDeathMovements();
             if (view === 'accumulative') {
                 filterIrrelevantHoldings();
                 accData = accumulateMovements(movementData);
@@ -94,8 +92,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 .holdingData(holdingData);
             plot.holdingData(holdingData);
             animove.holdingData(holdingData);
-
-            if (view === 'aggregate' || view === 'move') initMap();
 
             // Run the first time to build the vis
             updateVis();
@@ -109,41 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
      * Updates vis when window changed.
      */
     function updateVis() {
-        // viewFunctionLookup[view]();
-        const markers = d3.select('#map').select('svg').selectAll('g').data(holdingData);
-        const newMarkers = markers.enter().append('g')
-            .attr('class', 'marker');
-        newMarkers.append('circle')
-            .attr('r', 5);
-        newMarkers.on('mouseover', function(d) {
-            d3.select(this).style('fill', 'yellow');
-            console.log(d);
-
-        });
-
-        transform();
-
-        bgMap.on('viewreset', transform);
-
-        const points = holdingData.map(h => [ h.lat, h.lon ]);
-        bgMap.fitBounds([
-            [ d3.min(points, p => p[0]), d3.min(points, p => p[1]) ],
-            [ d3.max(points, p => p[0]), d3.max(points, p => p[1]) ]
-        ]);
-    }
-
-    function initMap() {
-        bgMap.setView([ 0, 0 ], 0)
-        L.tileLayer.grayscale("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {}).addTo(bgMap);
-
-        bgMap._initPathRoot();
-    }
-
-    function transform() {
-        d3.selectAll('.marker').each(function(d) {
-            d = bgMap.latLngToLayerPoint(new L.LatLng(d.lat, d.lon));
-            d3.select(this).attr('transform', 'translate(' + d.x + ',' + d.y + ')');
-        });
+        viewFunctionLookup[view]();
     }
 
     function updateMap() {
@@ -211,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
         movementData = movementData.filter(m => !m.birth && !m.death);
 
         // Filter out non-coordinated, non-type holdings
-        holdingData = holdingData.filter(h => h.lat && h.lon && h.type);
+        holdingData = holdingData.filter(h => h.lat && h.lng && h.type);
 
         // Filter out non-coordinated movements
         holdingLookup = {};

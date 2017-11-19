@@ -8,7 +8,6 @@ pv.vis.animove = function() {
     const margin = { top: 30, right: 30, bottom: 30, left: 30 },
         animalPadding = 1,
         continuous = false,
-        singleLocation = false,
         animalSize = continuous ? 4 : 10;
 
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
@@ -20,7 +19,7 @@ pv.vis.animove = function() {
     let holdingId = d => d.id,
         movementId = d => d.id,
         lat = d => d.lat,
-        lon = d => d.lon;
+        lng = d => d.lng;
 
     /**
      * Data binding to DOM elements.
@@ -38,13 +37,14 @@ pv.vis.animove = function() {
         holdingContainer,
         animalContainer;
 
+    let bgMap; // Background map (leaflet)
+    let zoomToFitted = false;
+
     /**
      * D3.
      */
-    const xScale = d3.scaleLinear(),
-        yScale = d3.scaleLinear(),
-        colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
-        orderScale = d3.interpolateGreys,
+    const colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
+        orderScale = d3.interpolateGreens,
         line = d3.line().x(d => d.x).y(d => d.y)
             .curve(d3.curveCatmullRom),
         listeners = d3.dispatch('click');
@@ -56,7 +56,7 @@ pv.vis.animove = function() {
         selection.each(function(_data) {
             // Initialize
             if (!this.visInitialized) {
-                visContainer = d3.select(this).append('g').attr('class', 'pv-animove');
+                visContainer = initMap(d3.select(this));
                 holdingContainer = visContainer.append('g').attr('class', 'holdings');
                 animalContainer = visContainer.append('g').attr('class', 'animals');
 
@@ -68,9 +68,34 @@ pv.vis.animove = function() {
             data = _data;
 
             update();
+
+            if (!zoomToFitted) {
+                zoomToFit();
+                zoomToFitted = true;
+            }
         });
 
         dataChanged = false;
+    }
+
+    function initMap(selection) {
+        // Div container for background map
+        selection.append('foreignObject')
+            .attr('width', '100%')
+            .attr('height', '100%')
+                .append('xhtml:div')
+                .attr('id', 'animove')
+                .attr('class', 'pv-animove');
+
+        bgMap = L.map('animove');
+        bgMap.setView([ 0, 0 ], 0);
+        // L.tileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { opacity: 0.5 }).addTo(bgMap);
+        L.tileLayer.grayscale("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { opacity: 0.5 }).addTo(bgMap);
+
+        bgMap._initPathRoot();
+        bgMap.on('viewreset', update);
+
+        return d3.select('#animove').select('svg');
     }
 
     /**
@@ -80,8 +105,6 @@ pv.vis.animove = function() {
         // Canvas update
         width = visWidth - margin.left - margin.right;
         height = visHeight - margin.top - margin.bottom;
-        xScale.range([ 0, width ]);
-        yScale.range([ height, 0 ]);
 
         visContainer.attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
@@ -90,9 +113,6 @@ pv.vis.animove = function() {
          */
         // Updates that depend only on data change
         if (dataChanged) {
-            xScale.domain(getExtent(holdingData, lon));
-            yScale.domain(getExtent(holdingData, lat));
-
             holdingData.forEach(h => {
                 holdingLookup[h.id] = h;
             });
@@ -102,13 +122,7 @@ pv.vis.animove = function() {
 
         // Updates that depend on both data and display change
         computeHoldingsLayout();
-
-        if (singleLocation) {
-            computeHoldingPositions();
-        } else {
-            computeHoldingCellsLayout();
-        }
-
+        computeHoldingCellsLayout();
         computeMovementsLayout();
 
         /**
@@ -127,6 +141,13 @@ pv.vis.animove = function() {
                 .merge(animals).call(updateAnimals);
             animals.exit().transition().attr('opacity', 0).remove();
         }
+    }
+
+    function zoomToFit() {
+        bgMap.fitBounds([
+            [ d3.min(holdingData, lat), d3.min(holdingData, lng) ],
+            [ d3.max(holdingData, lat), d3.max(holdingData, lng) ]
+        ]);
     }
 
     function getExtent(array, f) {
@@ -158,25 +179,20 @@ pv.vis.animove = function() {
         selection.each(function(d) {
             const container = d3.select(this);
 
-            // Transition location & opacity
-            container.transition()
-                .attr('transform', 'translate(' + d.x + ',' + d.y + ')')
+            // Location & opacity
+            container.attr('transform', 'translate(' + d.x + ',' + d.y + ')')
                 .attr('opacity', 1);
 
             // Cells
-            if (singleLocation) {
-
-            } else {
-                const items = container.selectAll('rect').data(d.cells);
-                items.enter().append('rect')
+            const items = container.selectAll('rect').data(d.cells);
+            items.enter().append('rect')
                 .attr('width', animalSize)
                 .attr('height', animalSize)
                 .style('fill', c => c.start ? 'green' : colorScale(c.stayLength))
                 // .style('fill', c => colorScale(c.stayLength))
-                .merge(items)
+              .merge(items)
                 .attr('x', c => c.x - animalSize / 2 - d.x)
                 .attr('y', c => c.y - animalSize / 2 - d.y);
-            }
         });
     }
 
@@ -207,15 +223,13 @@ pv.vis.animove = function() {
         selection.each(function(d, i) {
             const container = d3.select(this);
 
-            // Transition location & opacity
-            container.transition()
-                .attr('opacity', 1);
+            // Location & opacity
+            container.attr('opacity', 1);
 
-            container.select('.curve').transition()
-                .attr('d', d.path);
+            container.select('.curve').attr('d', d.path);
 
-            container.select('.curve')
-                .style('stroke', orderScale((i + 1) / data.length));
+            // container.select('.curve')
+            //     .style('stroke', orderScale((i + 1) / data.length));
         });
     }
 
@@ -231,15 +245,9 @@ pv.vis.animove = function() {
      */
     function computeHoldingsLayout() {
         holdingData.forEach(d => {
-            d.x = xScale(lon(d));
-            d.y = yScale(lat(d));
-        });
-    }
-
-    function computeHoldingPositions() {
-        data.forEach(d => {
-            d.originCell = holdingLookup[d.origin];
-            d.destCell = holdingLookup[d.dest];
+            const p = bgMap.latLngToLayerPoint(new L.LatLng(lat(d), lng(d)));
+            d.x = p.x;
+            d.y = p.y;
         });
     }
 
