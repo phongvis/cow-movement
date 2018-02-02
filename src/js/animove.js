@@ -8,7 +8,8 @@ pv.vis.animove = function() {
     const margin = { top: 30, right: 30, bottom: 30, left: 30 },
         animalPadding = 1,
         continuous = false,
-        animalSize = continuous ? 4 : 10;
+        singleLocation = true,
+        animalSize = 6;
 
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Size of the main content, excluding margins
@@ -46,7 +47,7 @@ pv.vis.animove = function() {
     const colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
         orderScale = d3.interpolateGreens,
         line = d3.line().x(d => d.x).y(d => d.y)
-            .curve(d3.curveCatmullRom),
+            // .curve(d3.curveCatmullRom),
         listeners = d3.dispatch('click');
 
     /**
@@ -168,6 +169,8 @@ pv.vis.animove = function() {
                 d3.select(this).raise();
             });
 
+        container.append('rect').attr('class', 'single');
+
         container.append('title')
             .text(d => d.name + ' (' + d.postcode + ')');
     }
@@ -184,15 +187,24 @@ pv.vis.animove = function() {
                 .attr('opacity', 1);
 
             // Cells
-            const items = container.selectAll('rect').data(d.cells);
-            items.enter().append('rect')
-                .attr('width', animalSize)
-                .attr('height', animalSize)
-                .style('fill', c => c.start ? 'green' : colorScale(c.stayLength))
-                // .style('fill', c => colorScale(c.stayLength))
-              .merge(items)
-                .attr('x', c => c.x - animalSize / 2 - d.x)
-                .attr('y', c => c.y - animalSize / 2 - d.y);
+            if (singleLocation) {
+                container.select('.single')
+                    .attr('width', animalSize)
+                    .attr('height', animalSize)
+                    .attr('x', -animalSize / 2)
+                    .attr('y', -animalSize / 2);
+            } else {
+                const items = container.selectAll('rect.cell').data(d.cells);
+                items.enter().append('rect')
+                    .attr('class', 'cell')
+                    .attr('width', animalSize)
+                    .attr('height', animalSize)
+                    .style('fill', c => c.start ? 'green' : colorScale(c.stayLength))
+                    // .style('fill', c => colorScale(c.stayLength))
+                  .merge(items)
+                    .attr('x', c => c.x - animalSize / 2 - d.x)
+                    .attr('y', c => c.y - animalSize / 2 - d.y);
+            }
         });
     }
 
@@ -260,29 +272,6 @@ pv.vis.animove = function() {
                 d.path = linkArcAsymmetric(d);
             }
         });
-    }
-
-    function linkArcThickThin(d) {
-        const fx = d.originCell.x,
-            fy = d.originCell.y,
-            tx = d.destCell.x,
-            ty = d.destCell.y;
-
-        const dx = Math.abs(fx - tx),
-            dy = Math.abs(fy - ty),
-            dr = Math.sqrt(dx * dx + dy * dy),
-            offset = 2.5,
-            offsetX = offset * dx / dr,
-            offsetY = offset * dy / dr,
-            fx1 = fx - offsetX,
-            fx2 = fx + offsetX,
-            fy1 = fy - offsetY,
-            fy2 = fy + offsetY;
-
-        // return 'M' + fx + ',' + fy + 'A' + dr + ',' + dr + ' 0 0,1 ' + tx + ',' + ty;
-        return 'M' + fx1 + ',' + fy1 +
-            'A' + dr + ',' + dr + ' 0 0,1 ' + tx + ',' + ty +
-            'A' + dr + ',' + dr + ' 0 0,0 ' + fx2 + ',' + fy2 + 'Z';
     }
 
     function linkArc(d) {
@@ -363,8 +352,8 @@ pv.vis.animove = function() {
         holdingData.forEach(h => {
             const seqs = pv.misc.makeSpiralSquare(h.cells.length);
             h.cells.forEach((cell, idx) => {
-                cell.x = h.x + (animalSize + animalPadding) * seqs[idx].col;
-                cell.y = h.y + (animalSize + animalPadding) * seqs[idx].row;
+                cell.x = h.x + (singleLocation ? 0 : (animalSize + animalPadding) * seqs[idx].col);
+                cell.y = h.y + (singleLocation ? 0 : (animalSize + animalPadding) * seqs[idx].row);
             });
         });
     }

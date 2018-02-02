@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
         movementGroupData,
         accData,
         holdingData,
+        holdingTypes,
         holdingLookup;
     let view;
 
@@ -17,9 +18,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const movementFileLookup = {
         aggregate: '../../data/movement1k.csv',
-        time: '../../data/movement1k.csv',
-        accumulative: '../../data/movement200k.csv', // filter out birth/death
-        move: '../../data/cow-02.csv',
+        time: '../../data/movement.csv',
+        accumulative: '../../data/movement50k.csv', // filter out birth/death
+        move: '../../data/cow-01.csv',
     };
 
     const maxStayLength = 100;
@@ -28,14 +29,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const map = pv.vis.map(),
         plot = pv.vis.scatterplot()
             .xDim({ label: '', value: d => d.date })
-            .yDim({ label: 'stay length (days)', value: d => d.stayLength }),
+            .yDim({ label: 'stay length (days)', value: d => d.stayLength })
+            .title(d => d.animalId + ' moves to ' + d.type + '-' + d.dest + ' on ' + d3.timeFormat('%A %b %d, %Y')(d.date) + ' and stays for ' + d.stayLength + ' days');
         chart = pv.vis.linechart()
             .xDim({ label: 'stay length (days)', value: d => d.length })
             .yDim({ label: '%', value: d => d.percent })
-            .title(d => d.count + ' incoming cows (' + _.round(d.percent, 2) + '%) stay less than or equal to ' + d.length + ' days')
-            .cellTitle(d => _.round(d.value * 100, 2)
-            + '% holdings are considered as dealers \n(having more than or equal to '
-            + d.row + '% incoming cows staying less than or equal to '
+            .title(d => d.count + ' incoming cows (' + _.round(d.percent, 2) + '%) stay ≤ ' + d.length + ' days')
+            .cellTitle(d => d.count + ' holdings (' + _.round(d.value * 100, 2)
+            + '%) are considered as dealers (≥ '
+            + d.row + '% incoming cows staying ≤ '
             + d.col + ' days)'),
         animove = pv.vis.animove();
 
@@ -75,6 +77,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             preprocess();
 
+            if (view === 'time') {
+                holdingTypes = extractTypes(movementData);
+                // movementData = movementData.filter(d => d.stayLength <= maxStayLength);
+            }
+
             if (view === 'aggregate') aggregateMovements();
 
             if (view === 'move') {
@@ -90,7 +97,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Assign extra data to vis
             map.movementGroupData(movementGroupData)
                 .holdingData(holdingData);
-            plot.holdingData(holdingData);
+            plot.holdingData(holdingData)
+                .labels(holdingTypes);
             animove.holdingData(holdingData);
 
             // Run the first time to build the vis
@@ -207,6 +215,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /**
+     * Returns all different types of outgoing holdings in the movements.
+     */
+    function extractTypes(data) {
+        return _.orderBy(_.entries(_.countBy(data, 'type')), e => e[1], 'desc')
+            .map(d => d[0]);
+    }
+
+    /**
      * Each group of movements is determined by a combination of
      * - movement date
      * - origin
@@ -254,11 +270,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return sortedTypes.map(t => {
             // For all movements
-            const points = accumulateSubset(typedMovementsLookup[t[0]]);
+            const points = accumulateMoves(typedMovementsLookup[t[0]]);
 
             // For each holding, accumulate its movements
             holdingData.forEach(h => {
-                holdingPoints = accumulateSubset(h.moves);
+                holdingPoints = accumulateMoves(h.moves);
 
                 // Fill all possible pairs (day, percent)
                 h.pointLookup = {};
@@ -278,12 +294,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const maxPercent = Math.round(_.last(points).percent);
             const cells = [];
             for (let i = 0; i < points.length; i++) {
-                for (let j = 0; j <= maxPercent; j++) {
+                for (let j = 1; j <= maxPercent; j++) {
                     // Check if it's a dealer
                     const dealers = holdingData.filter(h => h.pointLookup && h.pointLookup[i] >= j);
                     cells.push({
                         row: j,
                         col: i,
+                        count: dealers.length,
                         value: dealers.length / holdingData.length
                     });
                 }
@@ -297,7 +314,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    function accumulateSubset(data) {
+    function accumulateMoves(data) {
         let moves = [];
         _.each(_.countBy(data, 'stayLength'), (v, k) => {
             moves.push({ length: +k, count: v });

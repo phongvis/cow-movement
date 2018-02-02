@@ -5,7 +5,7 @@ pv.vis.scatterplot = function() {
     /**
      * Visual configs.
      */
-    const margin = { top: 10, right: 25, bottom: 25, left: 40 };
+    const margin = { top: 10, right: 45, bottom: 25, left: 40 };
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Excluding margins
 
@@ -13,7 +13,8 @@ pv.vis.scatterplot = function() {
      * Accessors.
      */
     let id = d => d.id,
-        xDim, yDim;
+        xDim, yDim,
+        title;
 
     /**
      * Data binding to DOM elements.
@@ -29,7 +30,8 @@ pv.vis.scatterplot = function() {
     let visContainer, // Containing the entire visualization
         xAxisContainer,
         yAxisContainer,
-        itemContainer;
+        itemContainer,
+        legendContainer;
 
     /**
      * D3.
@@ -52,6 +54,7 @@ pv.vis.scatterplot = function() {
                 xAxisContainer = visContainer.append('g').attr('class', 'x-axis');
                 yAxisContainer = visContainer.append('g').attr('class', 'y-axis');
                 itemContainer = visContainer.append('g').attr('class', 'items');
+                legendContainer = visContainer.append('g').attr('class', 'legends');
 
                 this.visInitialized = true;
             }
@@ -82,8 +85,6 @@ pv.vis.scatterplot = function() {
          */
         // Updates that depend only on data change
         if (dataChanged) {
-            data = data.filter(d => d.stayLength <= 100);
-
             holdingData.forEach(h => {
                 holdingLookup[h.id] = h;
             });
@@ -91,6 +92,8 @@ pv.vis.scatterplot = function() {
             // Domain scale
             xScale.domain(d3.extent(data, xDim.value)).nice();
             yScale.domain([ 0, d3.max(data, yDim.value) ]).nice();
+
+            colorScale.domain(labels);
         }
 
         // Updates that depend on both data and display change
@@ -108,6 +111,11 @@ pv.vis.scatterplot = function() {
         items.enter().append('g').attr('class', 'item').call(enterItems)
             .merge(items).call(updateItems);
         items.exit().transition().attr('opacity', 0).remove();
+
+        // Legend
+        const legends = legendContainer.selectAll('.legend').data(labels);
+        legends.enter().append('g').attr('class', 'legend').call(enterLegends)
+            .merge(legends).call(updateLegends);
     }
 
     /**
@@ -116,13 +124,11 @@ pv.vis.scatterplot = function() {
     function enterItems(selection) {
         const container = selection
             .attr('transform', d => 'translate(' + Math.round(d.x) + ',' + Math.round(d.y) + ')')
-            .attr('opacity', 0)
-            .on('click', function(d) {
-                listeners.call('click', this, d);
-                console.log(holdingLookup[d.dest] ? holdingLookup[d.dest].type : 'null');
-            });
+            .attr('opacity', 0);
         container.append('circle')
-            .attr('r', 2);
+            .attr('r', 1);
+        container.append('title')
+            .text(title);
     }
 
     /**
@@ -139,6 +145,32 @@ pv.vis.scatterplot = function() {
 
             container.select('circle')
                 .style('fill', holdingLookup[d.dest] ? colorScale(holdingLookup[d.dest].type) : 'gray');
+        });
+    }
+
+        /**
+     * Called when new legends added.
+     */
+    function enterLegends(selection) {
+        selection.append('text').text(String);
+        selection.append('circle')
+            .attr('r', 5)
+            .attr('cx', 10);
+    }
+
+    /**
+     * Called when legends updated.
+     */
+    function updateLegends(selection) {
+        selection.each(function(d, i) {
+            const container = d3.select(this);
+
+            const x = width + 25,
+                y = i * 20;
+            container.attr('transform', 'translate(' + x + ', ' + y + ')');
+
+            container.select('circle')
+                .style('fill', colorScale(d));
         });
     }
 
@@ -217,6 +249,24 @@ pv.vis.scatterplot = function() {
     module.holdingData = function(value) {
         if (!arguments.length) return holdingData;
         holdingData = value;
+        return this;
+    };
+
+    /**
+     * Sets/gets the holding types.
+     */
+    module.labels = function(value) {
+        if (!arguments.length) return labels;
+        labels = value;
+        return this;
+    };
+
+    /**
+     * Sets/gets the tooltip of points.
+     */
+    module.title = function(value) {
+        if (!arguments.length) return title;
+        title = value;
         return this;
     };
 

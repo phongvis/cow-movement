@@ -29,7 +29,7 @@
 }
 
 .pv-linechart .cell:hover {
-    stroke: red;
+    stroke: black;
 }
 
 .pv-linechart .cell rect {

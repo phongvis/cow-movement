@@ -38,6 +38,7 @@ pv.vis.linechart = function() {
      */
     let visContainer, // Containing the entire visualization
         lineContainer,
+        selectedLineContainer,
         cellContainer,
         xAxisContainer,
         yAxisContainer;
@@ -62,10 +63,10 @@ pv.vis.linechart = function() {
             // Initialize
             if (!this.visInitialized) {
                 visContainer = d3.select(this).append('g').attr('class', 'pv-linechart');
-                xAxisContainer = visContainer.append('g').attr('class', 'x-axis');
-                yAxisContainer = visContainer.append('g').attr('class', 'y-axis');
                 cellContainer = visContainer.append('g').attr('class', 'cells');
                 lineContainer = visContainer.append('g').attr('class', 'lines');
+                xAxisContainer = visContainer.append('g').attr('class', 'x-axis');
+                yAxisContainer = visContainer.append('g').attr('class', 'y-axis');
 
                 this.visInitialized = true;
             }

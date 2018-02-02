@@ -19,3 +19,8 @@
 .pv-scatterplot .item circle {
     fill-opacity: 0.25;
 }
+
+.pv-scatterplot .legend text {
+    text-anchor: end;
+    dominant-baseline: central;
+}
