@@ -7,7 +7,8 @@ pv.vis.scatterplot = function() {
      */
     const margin = { top: 10, right: 45, bottom: 25, left: 40 };
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
-        width, height; // Excluding margins
+        width, height, // Excluding margins
+        dotSize = 1;
 
     /**
      * Accessors.
@@ -126,7 +127,7 @@ pv.vis.scatterplot = function() {
             .attr('transform', d => 'translate(' + Math.round(d.x) + ',' + Math.round(d.y) + ')')
             .attr('opacity', 0);
         container.append('circle')
-            .attr('r', 1);
+            .attr('r', dotSize);
         container.append('title')
             .text(title);
     }
@@ -240,6 +241,15 @@ pv.vis.scatterplot = function() {
     module.yDim = function(value) {
         if (!arguments.length) return yDim;
         yDim = value;
+        return this;
+    };
+
+    /**
+     * Sets/gets the dot size.
+     */
+    module.dotSize = function(value) {
+        if (!arguments.length) return dotSize;
+        dotSize = value;
         return this;
     };
 

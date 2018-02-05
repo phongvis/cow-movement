@@ -11,7 +11,8 @@ pv.vis.linechart = function() {
         width, height; // Size of the main content, excluding margins
 
     let cellWidth,
-        cellHeight;
+        cellHeight,
+        showCells = true;
 
     /**
      * Accessors.
@@ -112,17 +113,19 @@ pv.vis.linechart = function() {
         xAxisContainer.call(xAxis).call(xLabel);
         yAxisContainer.call(yAxis).call(yLabel);
 
-        // Lines
-        const lines = lineContainer.selectAll('.line').data(data);
-        lines.enter().append('g').attr('class', 'line').call(enterLines)
-            .merge(lines).call(updateLines);
-        lines.exit().transition().attr('opacity', 0).remove();
-
         // Cells
-        const cells = cellContainer.selectAll('.cell').data(_cells(data[0]));
-        cells.enter().append('g').attr('class', 'cell').call(enterCells)
-            .merge(cells).call(updateCells);
-        cells.exit().transition().attr('opacity', 0).remove();
+        if (showCells) {
+            const cells = cellContainer.selectAll('.cell').data(_cells(data[0]));
+            cells.enter().append('g').attr('class', 'cell').call(enterCells)
+                .merge(cells).call(updateCells);
+            cells.exit().transition().attr('opacity', 0).remove();
+        } else {
+            // Lines
+            const lines = lineContainer.selectAll('.line').data(data);
+            lines.enter().append('g').attr('class', 'line').call(enterLines)
+                .merge(lines).call(updateLines);
+            lines.exit().transition().attr('opacity', 0).remove();
+        }
     }
 
     function enterLines(selection) {
@@ -151,7 +154,7 @@ pv.vis.linechart = function() {
             // Name
             container.select('text')
                 .attr('x', width)
-                .attr('y', height - 20 - 20 * i);
+                .attr('y', 20 * i + 10);
 
             // Points
             const items = container.selectAll('.item').data(d.points);
@@ -318,6 +321,15 @@ pv.vis.linechart = function() {
     module.title = function(value) {
         if (!arguments.length) return title;
         title = value;
+        return this;
+    };
+
+    /**
+     * Sets/gets showing cells.
+     */
+    module.showCells = function(value) {
+        if (!arguments.length) return showCells;
+        showCells = value;
         return this;
     };
 

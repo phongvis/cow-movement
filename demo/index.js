@@ -7,7 +7,8 @@ document.addEventListener('DOMContentLoaded', function() {
         holdingData,
         holdingTypes,
         holdingLookup;
-    let view;
+    let view,
+        opt; // full, part
 
     const viewFunctionLookup = {
         aggregate: updateMap, // Map showing aggregated movements
@@ -17,10 +18,10 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const movementFileLookup = {
-        aggregate: '../../data/movement1k.csv',
-        time: '../../data/movement.csv',
-        accumulative: '../../data/movement50k.csv', // filter out birth/death
-        move: '../../data/cow-01.csv',
+        aggregate: '../../data/movement10k.csv',
+        time: '../../data/movement50k.csv',
+        accumulative: '../../data/movement.csv', // filter out birth/death
+        move: '../../data/cow-02.csv',
     };
 
     const maxStayLength = 100;
@@ -36,14 +37,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .yDim({ label: '%', value: d => d.percent })
             .title(d => d.count + ' incoming cows (' + _.round(d.percent, 2) + '%) stay ≤ ' + d.length + ' days')
             .cellTitle(d => d.count + ' holdings (' + _.round(d.value * 100, 2)
-            + '%) are considered as dealers (≥ '
-            + d.row + '% incoming cows staying ≤ '
-            + d.col + ' days)'),
+                + '%) are considered as dealers (≥ '
+                + d.row + '% incoming cows staying ≤ '
+                + d.col + ' days)'),
         animove = pv.vis.animove();
 
     // Main entry
     (function() {
         checkQueryStringView();
+
+        if (view === 'time' && opt === 'full') {
+            movementFileLookup.time = '../../data/movement.csv';
+        }
 
         loadCsvData(movementFileLookup[view]).then(data => {
             movementData = data.map(m => ({
@@ -79,10 +84,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (view === 'time') {
                 holdingTypes = extractTypes(movementData);
-                // movementData = movementData.filter(d => d.stayLength <= maxStayLength);
+                if (opt === 'part') {
+                    movementData = movementData.filter(d => d.stayLength <= maxStayLength);
+                }
+                plot.dotSize(opt === 'part' ? 3 : 1);
             }
 
-            if (view === 'aggregate') aggregateMovements();
+            if (view === 'aggregate') {
+                movementData = movementData.filter(d => d.origin && d.dest && d.origin !== d.dest);
+                constrainArea();
+                aggregateMovements();
+            }
 
             if (view === 'move') {
                 movementData = movementData.filter(d => d.origin && d.dest && d.origin !== d.dest);
@@ -91,7 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (view === 'accumulative') {
                 filterIrrelevantHoldings();
-                accData = accumulateMovements(movementData);
+                accData = accumulateMovements(movementData, opt === 'cells');
             }
 
             // Assign extra data to vis
@@ -99,7 +111,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 .holdingData(holdingData);
             plot.holdingData(holdingData)
                 .labels(holdingTypes);
-            animove.holdingData(holdingData);
+            chart.showCells(opt === 'cells');
+            animove.holdingData(holdingData)
+                .singleLocation(opt === 'single');
 
             // Run the first time to build the vis
             updateVis();
@@ -162,6 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function checkQueryStringView() {
         view = pv.misc.getQueryStringObject().view;
+        opt = pv.misc.getQueryStringObject().opt;
     }
 
     function loadCsvData(filename) {
@@ -223,6 +238,37 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     /**
+     * Filter movements so that they move within a small area, easy for demonstration.
+     */
+    function constrainArea() {
+        const latCenter = 51.8642,
+            lngCenter = -2.2382,
+            offset = 0.2;
+
+        movementData = movementData.filter(m => {
+            const latO = holdingLookup[m.origin].lat,
+                lngO = holdingLookup[m.origin].lng,
+                latD = holdingLookup[m.dest].lat,
+                lngD = holdingLookup[m.dest].lng;
+            return latO > latCenter - offset && latO < latCenter + offset &&
+                lngO > lngCenter - offset && lngO < lngCenter + offset &&
+                latD > latCenter - offset && latD < latCenter + offset &&
+                lngD > lngCenter - offset && lngD < lngCenter + offset;
+        });
+
+        // Filter out non-movement holdings
+        holdingLookup = {};
+        movementData.forEach(m => {
+            if (m.origin) holdingLookup[m.origin] = 1;
+            if (m.dest) holdingLookup[m.dest] = 1;
+        });
+        holdingData = holdingData.filter(h => holdingLookup[h.id]);
+
+        console.log(movementData.length);
+
+    }
+
+    /**
      * Each group of movements is determined by a combination of
      * - movement date
      * - origin
@@ -263,8 +309,8 @@ document.addEventListener('DOMContentLoaded', function() {
     /**
      * Accumulate movements based on the number of stay days.
      */
-    function accumulateMovements(data) {
-        const maxNumTypes = 1;
+    function accumulateMovements(data, showCells) {
+        const maxNumTypes = showCells ? 1 : 10;
         const sortedTypes = _.orderBy(_.entries(_.countBy(data, 'type')), e => e[1], 'desc').slice(0, maxNumTypes);
         const typedMovementsLookup = _.groupBy(data, 'type');
 

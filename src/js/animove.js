@@ -7,12 +7,13 @@ pv.vis.animove = function() {
      */
     const margin = { top: 30, right: 30, bottom: 30, left: 30 },
         animalPadding = 1,
-        continuous = false,
-        singleLocation = true,
         animalSize = 6;
 
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Size of the main content, excluding margins
+
+    let continuous = false,
+        singleLocation = false;
 
     /**
      * Accessors.
@@ -382,6 +383,15 @@ pv.vis.animove = function() {
     module.id = function(value) {
         if (!arguments.length) return id;
         id = value;
+        return this;
+    };
+
+    /**
+     * Sets/gets the single location option.
+     */
+    module.singleLocation = function(value) {
+        if (!arguments.length) return singleLocation;
+        singleLocation = value;
         return this;
     };
 

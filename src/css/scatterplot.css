@@ -20,6 +20,10 @@
     fill-opacity: 0.25;
 }
 
+.pv-scatterplot .item circle:hover {
+    stroke: black;
+}
+
 .pv-scatterplot .legend text {
     text-anchor: end;
     dominant-baseline: central;

@@ -7,7 +7,7 @@ pv.vis.map = function() {
      */
     const margin = { top: 20, right: 20, bottom: 20, left: 20 },
         animalPadding = 0,
-        animalSize = 3;
+        animalSize = 4;
 
     let visWidth = 960, visHeight = 600, // Size of the visualization, including margins
         width, height; // Size of the main content, excluding margins
@@ -20,14 +20,14 @@ pv.vis.map = function() {
     let holdingId = d => d.id,
         animalId = d => d.animalId,
         lat = d => d.lat,
-        lon = d => d.lon;
+        lng = d => d.lng;
 
     /**
      * Data binding to DOM elements.
      */
     let data,
         movementGroupData,
-        holdingLookup = {}, // Store lat, lon of holdings and live animals (update according to the animation)
+        holdingLookup = {}, // Store lat, lng of holdings and live animals (update according to the animation)
         holdingData,
         dataChanged = true; // True to redo all data-related computations
 
@@ -38,12 +38,13 @@ pv.vis.map = function() {
         holdingContainer,
         animalContainer;
 
+    let bgMap; // Background map (leaflet)
+    let zoomToFitted = false;
+
     /**
      * D3.
      */
-    const xScale = d3.scaleLinear(),
-        yScale = d3.scaleLinear(),
-        colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
+    const colorScale = d => d3.interpolateReds(d <= 15 ? 0.1 : d <= 30 ? 0.25 : d <= 60 ? 0.5 : 0.75),
         listeners = d3.dispatch('click');
 
     /**
@@ -53,7 +54,7 @@ pv.vis.map = function() {
         selection.each(function(_data) {
             // Initialize
             if (!this.visInitialized) {
-                visContainer = d3.select(this).append('g').attr('class', 'pv-map');
+                visContainer = initMap(d3.select(this));
                 animalContainer = visContainer.append('g').attr('class', 'animals');
                 holdingContainer = visContainer.append('g').attr('class', 'holdings');
 
@@ -63,9 +64,44 @@ pv.vis.map = function() {
             data = _data;
 
             update();
+
+            if (!zoomToFitted) {
+                zoomToFit();
+                zoomToFitted = true;
+            }
         });
 
         dataChanged = false;
+    }
+
+    function initMap(selection) {
+        // Div container for background map
+        selection.append('foreignObject')
+            .attr('width', '100%')
+            .attr('height', '100%')
+                .append('xhtml:div')
+                .attr('id', 'map')
+                .attr('class', 'pv-map');
+
+        bgMap = L.map('map');
+        bgMap.setView([ 0, 0 ], 0);
+        // L.tileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { opacity: 0.5 }).addTo(bgMap);
+        L.tileLayer.grayscale("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { opacity: 0.5 }).addTo(bgMap);
+
+        bgMap._initPathRoot();
+        bgMap.on('viewreset', update);
+
+        return d3.select('#map').select('svg');
+    }
+
+    function zoomToFit() {
+        console.log([ d3.min(holdingData, lat), d3.min(holdingData, lng) ],
+        [ d3.max(holdingData, lat), d3.max(holdingData, lng) ]);
+
+        bgMap.fitBounds([
+            [ d3.min(holdingData, lat), d3.min(holdingData, lng) ],
+            [ d3.max(holdingData, lat), d3.max(holdingData, lng) ]
+        ]);
     }
 
     /**
@@ -75,8 +111,6 @@ pv.vis.map = function() {
         // Canvas update
         width = visWidth - margin.left - margin.right;
         height = visHeight - margin.top - margin.bottom;
-        xScale.range([ 0, width ]);
-        yScale.range([ height, 0 ]);
 
         visContainer.attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
@@ -85,9 +119,6 @@ pv.vis.map = function() {
          */
         // Updates that depend only on data change
         if (dataChanged) {
-            xScale.domain(d3.extent(holdingData, lon));
-            yScale.domain(d3.extent(holdingData, lat));
-
             holdingData.forEach(h => {
                 holdingLookup[h.id] = h;
                 h.animals = [];
@@ -161,8 +192,8 @@ pv.vis.map = function() {
                 d3.select(this).raise();
             });
 
-        container.append('circle')
-            .attr('r', 12);
+        // container.append('circle')
+        //     .attr('r', 12);
         // container.append('text')
         //     .text(d => d.type);
     }
@@ -223,8 +254,9 @@ pv.vis.map = function() {
      */
     function computeLayout(data) {
         data.forEach(d => {
-            d.x = xScale(lon(d));
-            d.y = yScale(lat(d));
+            const p = bgMap.latLngToLayerPoint(new L.LatLng(lat(d), lng(d)));
+            d.x = p.x;
+            d.y = p.y;
         });
     }
 
@@ -232,32 +264,16 @@ pv.vis.map = function() {
      * Computes the position of all animals in the given holding.
      */
     function computeHoldingAnimalsLayout(h, origin) {
-        if (h.lat && h.lon) {
-            const seqs = pv.misc.makeSpiralSquare(h.animals.length);
-            h.animals.forEach((a, idx) => {
-                if (a.x0 === undefined) {
-                    a.x0 = (origin.x === undefined ? -width : origin.x) + (animalSize + animalPadding) * seqs[idx].col;
-                    a.y0 = (origin.y === undefined ? -height : origin.y) + (animalSize + animalPadding) * seqs[idx].row;
-                }
+        const seqs = pv.misc.makeSpiralSquare(h.animals.length);
+        h.animals.forEach((a, idx) => {
+            if (a.x0 === undefined) {
+                a.x0 = (origin.x === undefined ? -width : origin.x) + (animalSize + animalPadding) * seqs[idx].col;
+                a.y0 = (origin.y === undefined ? -height : origin.y) + (animalSize + animalPadding) * seqs[idx].row;
+            }
 
-                a.x = h.x + (animalSize + animalPadding) * seqs[idx].col;
-                a.y = h.y + (animalSize + animalPadding) * seqs[idx].row;
-            });
-        } else {
-            // TODO: should be none
-            console.log('no', h);
-
-            // If a holding doesn't exist, it's an external, set it to somewhere far
-            h.animals.forEach(a => {
-                if (a.x0 === undefined) {
-                    a.x0 = -width;
-                    a.y0 = -height;
-                }
-
-                a.x = -width;
-                a.y = -height;
-            });
-        }
+            a.x = h.x + (animalSize + animalPadding) * seqs[idx].col;
+            a.y = h.y + (animalSize + animalPadding) * seqs[idx].row;
+        });
     }
 
     /**
