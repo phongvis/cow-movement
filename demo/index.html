@@ -12,9 +12,34 @@
         <link rel="stylesheet" href="../src/css/scatterplot.css">
         <link rel="stylesheet" href="../src/css/linechart.css">
         <link rel="stylesheet" href="../src/css/animove.css">
+
+        <style>
+            .hidden {
+                display: none;
+            }
+
+            .vis-list {
+                position: fixed;
+                top: 0;
+                left: 0;
+                font-size: 14px;
+            }
+        </style>
     </head>
     <body>
         <svg class="pv-vis-demo"></svg>
+
+        <div class='vis-list'>
+            <ul>
+                <li><a href='?view=time&opt=full' target='_blank'>In-movement date vs. stay length in Gloucestershire, 2010</a></li>
+                <li><a href='?view=time' target='_blank'>In-movement date vs. stay length (≤ 100 days) in Gloucestershire, 2010 January - March</a></li>
+                <li><a href='?view=accumulative' target='_blank'>Cumulative movement by stay length per holding type</a></li>
+                <li><a href='?view=accumulative&opt=cells' target='_blank'>Heatmap of stay days vs. cumulative percent of movements for AH holding type</a></li>
+                <li><a href='?view=aggregate' target='_blank'>Animated movement map between places by day</a></li>
+                <li><a href='?view=move&opt=single' target='_blank'>Journey of a cow - a holding is shown as a point</a></li>
+                <li><a href='?view=move' target='_blank'>Journey of a cow - a holding is shown with multiple points, each for a movement</a></li>
+            </ul>
+        </div>
 
         <script src="http://cdn.leafletjs.com/leaflet-0.7/leaflet.js"></script>
         <script src="https://zverik.github.io/leaflet-grayscale/TileLayer.Grayscale.js"></script>

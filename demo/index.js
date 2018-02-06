@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Data
-    const holdingFile = '../../data/HoldingsWithGL2010movement.csv'
+    const holdingFile = '../data/HoldingsWithGL2010movement.csv'
     let movementData,
         movementGroupData,
         accData,
@@ -18,10 +18,10 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const movementFileLookup = {
-        aggregate: '../../data/movement10k.csv',
-        time: '../../data/movement50k.csv',
-        accumulative: '../../data/movement.csv', // filter out birth/death
-        move: '../../data/cow-02.csv',
+        aggregate: '../data/movement10k.csv',
+        time: '../data/movement50k.csv',
+        accumulative: '../data/movement.csv', // filter out birth/death
+        move: '../data/cow-02.csv',
     };
 
     const maxStayLength = 100;
@@ -45,9 +45,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Main entry
     (function() {
         checkQueryStringView();
+        d3.select('.vis-list').classed('hidden', view);
+
+        if (!view) return;
 
         if (view === 'time' && opt === 'full') {
-            movementFileLookup.time = '../../data/movement.csv';
+            movementFileLookup.time = '../data/movement.csv';
         }
 
         loadCsvData(movementFileLookup[view]).then(data => {
@@ -84,10 +87,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (view === 'time') {
                 holdingTypes = extractTypes(movementData);
-                if (opt === 'part') {
+                if (opt !== 'full') {
                     movementData = movementData.filter(d => d.stayLength <= maxStayLength);
                 }
-                plot.dotSize(opt === 'part' ? 3 : 1);
+                plot.dotSize(opt === 'full' ? 1 : 3);
             }
 
             if (view === 'aggregate') {
@@ -175,8 +178,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function checkQueryStringView() {
-        view = pv.misc.getQueryStringObject().view;
-        opt = pv.misc.getQueryStringObject().opt;
+        const obj = pv.misc.getQueryStringObject();
+        if (obj) {
+            view = obj.view;
+            opt = obj.opt;
+        }
     }
 
     function loadCsvData(filename) {
@@ -263,9 +269,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (m.dest) holdingLookup[m.dest] = 1;
         });
         holdingData = holdingData.filter(h => holdingLookup[h.id]);
-
-        console.log(movementData.length);
-
     }
 
     /**

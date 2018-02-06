@@ -95,9 +95,6 @@ pv.vis.map = function() {
     }
 
     function zoomToFit() {
-        console.log([ d3.min(holdingData, lat), d3.min(holdingData, lng) ],
-        [ d3.max(holdingData, lat), d3.max(holdingData, lng) ]);
-
         bgMap.fitBounds([
             [ d3.min(holdingData, lat), d3.min(holdingData, lng) ],
             [ d3.max(holdingData, lat), d3.max(holdingData, lng) ]
